@@ -4,25 +4,24 @@ import numpy as np
 
 
 class WebsiteCrawler:
-    def __init__(self, user_agents, timeout):
-        self.user_agents = user_agents
+    def __init__(self, timeout):
         self.timeout = timeout
 
-    def get_random_user_agent(self):
-        """
-        Returns a random user agent from the list of user agents
-        :return: str
-        """
-        return self.user_agents[np.random.randint(0, len(self.user_agents))]
+    # def get_random_user_agent(self):
+    #     """
+    #     Returns a random user agent from the list of user agents
+    #     :return: str
+    #     """
+    #     return self.user_agents[np.random.randint(0, len(self.user_agents))]
 
-    def crawl_website(self, domain):
+    def crawl_website(self, domain, user_agent):
         """
         Crawls the website and returns a list of links found on the website
         We are specifically looking for links that contain "about" or "contact" in them
         :param domain: str
         :return: list
         """
-        headers = {"User-Agent": self.get_random_user_agent()}
+        headers = {"User-Agent": user_agent}
         print(f"Crawling website: {domain}")
         new_links = [f"https://{domain}"]  # add the main page to the list of links
         try:

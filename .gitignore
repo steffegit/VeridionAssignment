@@ -1,5 +1,7 @@
-env
-.idea
+env/
+.idea/
 __pycache__/
+utils/__pycache__/
+*.pyc
 *.py[cod]
 *$py.class
