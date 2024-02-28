@@ -1,12 +1,11 @@
 import requests
-import pandas as pd
-import sys
 import re
 import numpy as np
 from bs4 import BeautifulSoup as bs
-from fastparquet import ParquetFile, write
 from timeit import default_timer as timer
 from geopy.geocoders import Nominatim
+
+from utils.io_operations import ParquetHandler
 
 # Format: country, region, city, postcode, road, and road numbers.
 # IMPORTANT: We'll use LXML parser for the BeautifulSoup object, because it's faster than the default parser
@@ -39,16 +38,6 @@ user_agents = open("user-agents.txt", "r").read().split("\n")
 # End of Constants
 
 
-# Function to parse parquet file and get the desired column
-def parse_parquet_file(file, selected_column):
-    try:
-        parquet_file = ParquetFile(file)
-        return parquet_file.to_pandas()[selected_column]
-    except:
-        print("Error: Could not parse parquet file")
-        sys.exit(1)
-
-
 # Function to crawl websites and get links to about and contact pages (if they exist)
 # We do this so we can get the contact information of the companies
 def crawl_websites(domain):
@@ -59,7 +48,14 @@ def crawl_websites(domain):
     try:
         response = requests.get(
             f"https://{domain}", timeout=TIMEOUT, headers=headers, allow_redirects=True
-        ).text
+        )
+
+        # if the main page redirects to another page, we chage the domain to the redirected page's domain
+
+        if domain not in response.url:
+            domain = response.url.split("/")[2]
+
+        response = response.text
         if (
             not "404" in response
             or not "error" in response
@@ -83,15 +79,6 @@ def crawl_websites(domain):
     return new_links
 
 
-def write_to_parquet(links_array):
-    try:
-        df = pd.DataFrame(links_array, columns=["link"])
-        write("list_of_websites.snappy.parquet", df)
-    except:
-        print("Error: Could not write to parquet file")
-        sys.exit(1)
-
-
 # TODO: For each link in the list, use regex to grab the address information
 # Maybe we can use session, and pass it to each function to avoid creating a new session for each link
 # We can also use a thread pool to make the process faster
@@ -112,36 +99,26 @@ def create_final_address(location_from_street, location_from_zip):
     if not address_from_street and not address_from_zip:
         return None
 
-    print(f"address_from_street: {address_from_street}")
-    print(f"address_from_zip: {address_from_zip}")
-
-    country = choose_field(address_from_street, address_from_zip, "country")
-    region = choose_field(address_from_street, address_from_zip, "state")
-    city = choose_field(address_from_street, address_from_zip, "city")
-    postcode = choose_field(address_from_street, address_from_zip, "postcode")
-    road = choose_field(address_from_street, address_from_zip, "road")
-    house_number = choose_field(address_from_street, address_from_zip, "house_number")
+    country = get_field_value(address_from_street, address_from_zip, "country")
+    region = get_field_value(address_from_street, address_from_zip, "state")
+    city = get_field_value(address_from_street, address_from_zip, "city")
+    postcode = get_field_value(address_from_street, address_from_zip, "postcode")
+    road = get_field_value(address_from_street, address_from_zip, "road")
+    house_number = get_field_value(
+        address_from_street, address_from_zip, "house_number"
+    )
 
     return f"{country}, {region}, {city}, {postcode}, {road}, {house_number}"
 
 
-def choose_field(first, second, field):
-    field1 = None
-    field2 = None
-    if first and field in first:
-        field1 = first[field]
-    if second and field in second:
-        field2 = second[field]
+def get_field_value(first, second, field):
+    field1 = first.get(field) if first else None
+    field2 = second.get(field) if second else None
 
-    if field1 and field2:
-        if field == "road":
-            return field1
-        return field2
+    if field == "road" and field1:
+        return field1
 
-    if not field1:
-        return field2
-
-    return field1
+    return field2 or field1
 
 
 def get_location(soup, regex, url):
@@ -216,11 +193,14 @@ def parse_address(url):
 
 if __name__ == "__main__":
     start = timer()
-    file = open("list of company websites.snappy.parquet", "rb")  # open parquet file
-    df = parse_parquet_file(
-        file, "domain"
-    )  # parse parquet file and get the domain column
-    file.close()
+
+    # TODO: make the path be modifiable
+
+    path = "list of company websites.snappy.parquet"
+    ParquetHandler = ParquetHandler(path)
+
+    # Parse parquet file and get the domain column
+    df = ParquetHandler.parse_parquet("domain")
 
     # for domain in df:
     #     links = crawl_websites(domain)

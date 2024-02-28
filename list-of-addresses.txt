@@ -1,11 +1,3 @@
-United States, Illinois, None, 60195, West Higgins Road, 811
-France, Auvergne-Rhône-Alpes, None, 01170, Rue Saint-Maurice, 503
-United States, Michigan, None, 49849, Maurice Street, 503
-United States, Massachusetts, None, 02368, Chiefs Way, None
-United States, California, Inglewood, 90304, South La Cienega Boulevard, 9800
-United States, Florida, Daytona Beach, 32114, Fulton Street, 325
-United States, Ohio, Columbus, 43230, Wyandotte Drive, 4640
-United States, New York, City of Syracuse, 13204, Gifford Street, 432
-United States, New York, City of New York, 10026, West 116th Street, None
-United States, Delaware, Wilmington, 19801, South Market Street, 101
-United States, North Dakota, None, 58078, Sheyenne Street, 444
+United States, Illinois, None, 60068, West Higgins Road, 811
+United States, Illinois, None, 60068, West Higgins Road, 811
+United States, Illinois, None, 60068, West Higgins Road, 811
