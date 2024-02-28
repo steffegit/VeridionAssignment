@@ -1,3 +1,4 @@
+import random
 from bs4 import BeautifulSoup as bs
 from fastparquet import ParquetFile, write
 import requests
@@ -5,11 +6,14 @@ import pandas as pd
 import sys
 import re
 from geopy.geocoders import Nominatim
+from timeit import default_timer as timer
+import json as JSON
 
 # Format: country, region, city, postcode, road, and road numbers.
 # IMPORTANT: We'll use LXML parser for the BeautifulSoup object, because it's faster than the default parser
 
 # TODO: Add color for errors and success messages
+# TODO: add logging (maybe use the logging module)
 
 # Constants
 
@@ -31,6 +35,8 @@ num_regex = re.compile(r"\d+")
 
 geolocator = Nominatim(user_agent="veridionAssignment")
 
+user_agents = open("user-agents.txt", "r").read().split("\n")
+
 # End of Constants
 
 
@@ -47,11 +53,14 @@ def parse_parquet_file(file, selected_column):
 # Function to crawl websites and get links to about and contact pages (if they exist)
 # We do this so we can get the contact information of the companies
 def crawl_websites(domain):
+    headers = {"User-Agent": user_agents[random.randint(0, len(user_agents) - 1)]}
     print(f"Crawling website: {domain}")
     new_links = []
-    new_links.append(f"http://{domain}")  # add the main page to the list of links
+    new_links.append(f"https://{domain}")  # add the main page to the list of links
     try:
-        response = requests.get(f"http://{domain}", timeout=TIMEOUT).text
+        response = requests.get(
+            f"https://{domain}", timeout=TIMEOUT, headers=headers
+        ).text
         if (
             not "404" in response
             or not "error" in response
@@ -65,9 +74,9 @@ def crawl_websites(domain):
                         new_links.append(href)
                     else:
                         if "/" in href:
-                            new_links.append(f"http://{domain}{href}")
+                            new_links.append(f"https://{domain}{href}")
                         else:
-                            new_links.append(f"http://{domain}/{href}")
+                            new_links.append(f"https://{domain}/{href}")
     except:
         # do nothing
         pass
@@ -90,82 +99,118 @@ def write_to_parquet(links_array):
 
 
 def create_final_address(location_from_street, location_from_zip):
+    if not location_from_street and not location_from_zip:
+        return None
+
+    address_from_street = None
+    address_from_zip = None
+
     if location_from_street:
-        return
+        address_from_street = location_from_street.raw.get("address")
     if location_from_zip:
-        return
+        address_from_zip = location_from_zip.raw.get("address")
+
+    country = choose_field(address_from_street, address_from_zip, "country")
+    region = choose_field(address_from_street, address_from_zip, "state")
+    city = choose_field(address_from_street, address_from_zip, "city")
+    postcode = choose_field(address_from_street, address_from_zip, "postcode")
+    road = choose_field(address_from_street, address_from_zip, "road")
+    house_number = choose_field(address_from_street, address_from_zip, "house_number")
+
+    return f"{country}, {region}, {city}, {postcode}, {road}, {house_number}"
+
+
+def choose_field(first, second, field):
+    field1 = None
+    field2 = None
+    if first and field in first:
+        field1 = first[field]
+    if second and field in second:
+        field2 = second[field]
+
+    if field1 and field2:
+        if field == "road":
+            return field1
+        return field2
+
+    if not field1:
+        return field2
+
+    return field1
+
+
+def get_location(soup, regex, url):
+    try:
+        for val in soup.find_all(string=regex):
+            if len(val) <= 100:
+                location = re.search(regex, val).group(0)
+                location = re.sub(po_box_regex, "", location)
+                return location
+    except AttributeError:
+        print(f"AttributeError: Unable to find or process the location from {url}")
+    except Exception as e:
+        print(f"Unexpected error {e} occurred while getting location from {url}")
+    return None
 
 
 def parse_address(url):
+    headers = {"User-Agent": user_agents[random.randint(0, len(user_agents) - 1)]}
     try:
-        response = requests.get(url, timeout=TIMEOUT)
-        if response.status_code != 200:
-            print(f"Error getting {url}")
-            return
-        response = response.text
-        soup = bs(response, "lxml")
-    except:
-        print(f"Error parsing page {url}")
+        response = requests.get(url, timeout=TIMEOUT, headers=headers)
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as https_err:
+        print(f"https error occurred while getting {url}")
+        return
+    except Exception as err:
+        print(f"Error occurred while getting {url}")
+        return
 
-    # Search for a valid formatted street address
-    street_address = None
     try:
-        street_address = [
-            val for val in soup.find_all(string=street_regex) if len(val) <= 100
-        ]
-        if street_address:
-            street_address = re.search(street_regex, street_address[0].text).group(0)
-            street_address = re.sub(po_box_regex, "", street_address)
-    except:
-        print(f"Error getting street from {url}")
+        soup = bs(response.text, "lxml")
+    except Exception as e:
+        print(f"Error occurred while parsing page {url}. Error: {e}")
+        return
 
-    # Search for a valid zip code
-    zip_code = None
-    try:
-        zip_code = [
-            val for val in soup.find_all(string=zip_code_regex) if len(val) <= 100
-        ]
+    street_address = get_location(soup, street_regex, url)
+    zip_code = get_location(soup, zip_code_regex, url)
 
-        if zip_code:
-            zip_code = re.search(zip_code_regex, zip_code[0].text).string.strip()
-            zip_code = re.sub(po_box_regex, "", zip_code)
-    except:
-        print(f"Error getting zipcode from page {url}")
-
-    # Check if the street address and zip code are valid and return them
     location_from_street = None
     location_from_zip = None
-    try:
-        if street_address:
+
+    if street_address:
+        try:
             location_from_street = geolocator.geocode(
                 street_address, addressdetails=True, timeout=TIMEOUT
             )
-        if zip_code:
+        except Exception as e:
+            print(
+                f"Error validating location from the street_address {street_address} from page {url}. Error: {e}"
+            )
+
+    if zip_code:
+        try:
             location_from_zip = geolocator.geocode(zip_code)
-    except:
-        print(
-            f"Error validating location from the street_address or zip code from page {url}"
-        )
+        except Exception as e:
+            print(
+                f"Error validating location from the zip_code {zip_code} from page {url}. Error: {e}"
+            )
 
-    return [location_from_street, location_from_zip]
+    final_address = None
+    try:
+        final_address = create_final_address(location_from_street, location_from_zip)
+    except Exception as e:
+        print(f"Error getting final address from page {url}. Error {e}")
 
-    # final_address = None
-    # try:
-    #     final_address = create_final_address(location_from_street, location_from_zip)
-    # except:
-    #     print(f"Error getting final address from page {url}")
-
-    # return final_address
+    return final_address
 
 
 if __name__ == "__main__":
+    start = timer()
     file = open("list of company websites.snappy.parquet", "rb")  # open parquet file
     df = parse_parquet_file(
         file, "domain"
     )  # parse parquet file and get the domain column
     file.close()
-
-    all_links = []
 
     # for domain in df:
     #     links = crawl_websites(domain)
@@ -174,12 +219,12 @@ if __name__ == "__main__":
     #         all_links.extend(links)
 
     # for testing purposes:
-    for i in range(10):
+    for i in range(20):
         links = crawl_websites(df[i])
-        if links:
-            all_links.extend(links)
+        for link in links:
+            output = parse_address(link)
+            if output:
+                print(output)
 
-    # print(all_links)
-
-    for link in all_links:
-        print(parse_address(link))
+    end = timer()
+    print(f"Time elapsed: {end - start} seconds")
