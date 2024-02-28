@@ -6,12 +6,14 @@ from timeit import default_timer as timer
 from geopy.geocoders import Nominatim
 
 from utils.io_operations import ParquetHandler
+from utils.crawler import WebsiteCrawler
 
 # Format: country, region, city, postcode, road, and road numbers.
 # IMPORTANT: We'll use LXML parser for the BeautifulSoup object, because it's faster than the default parser
 
 # TODO: Add color for errors and success messages
 # TODO: add logging (maybe use the logging module)
+# TODO: Add try except for every file open/save operation
 
 # Constants
 
@@ -36,47 +38,6 @@ geolocator = Nominatim(user_agent="veridionAssignment")
 user_agents = open("user-agents.txt", "r").read().split("\n")
 
 # End of Constants
-
-
-# Function to crawl websites and get links to about and contact pages (if they exist)
-# We do this so we can get the contact information of the companies
-def crawl_websites(domain):
-    headers = {"User-Agent": user_agents[np.random.randint(0, len(user_agents))]}
-    print(f"Crawling website: {domain}")
-    new_links = []
-    new_links.append(f"https://{domain}")  # add the main page to the list of links
-    try:
-        response = requests.get(
-            f"https://{domain}", timeout=TIMEOUT, headers=headers, allow_redirects=True
-        )
-
-        # if the main page redirects to another page, we chage the domain to the redirected page's domain
-
-        if domain not in response.url:
-            domain = response.url.split("/")[2]
-
-        response = response.text
-        if (
-            not "404" in response
-            or not "error" in response
-            or not "not found" in response
-        ):
-            soup = bs(response, "lxml")
-            for link in soup.find_all("a"):
-                href = link.get("href")
-                if "about" in href or "contact" in href:
-                    if domain in href:
-                        new_links.append(href)
-                    else:
-                        if "/" in href:
-                            new_links.append(f"https://{domain}{href}")
-                        else:
-                            new_links.append(f"https://{domain}/{href}")
-    except:
-        # do nothing
-        pass
-    new_links = list(set(new_links))  # remove duplicates
-    return new_links
 
 
 # TODO: For each link in the list, use regex to grab the address information
@@ -202,6 +163,8 @@ if __name__ == "__main__":
     # Parse parquet file and get the domain column
     df = ParquetHandler.parse_parquet("domain")
 
+    Crawler = WebsiteCrawler(user_agents, TIMEOUT)
+
     # for domain in df:
     #     links = crawl_websites(domain)
     #     if links:
@@ -212,7 +175,7 @@ if __name__ == "__main__":
 
     # for testing purposes:
     for i in range(50):
-        links = crawl_websites(df[i])
+        links = Crawler.crawl_website(df[i])
         for link in links:
             output = parse_address(link)
             if output:
