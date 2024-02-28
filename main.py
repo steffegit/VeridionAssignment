@@ -1,13 +1,12 @@
-import random
-from bs4 import BeautifulSoup as bs
-from fastparquet import ParquetFile, write
 import requests
 import pandas as pd
 import sys
 import re
-from geopy.geocoders import Nominatim
+import numpy as np
+from bs4 import BeautifulSoup as bs
+from fastparquet import ParquetFile, write
 from timeit import default_timer as timer
-import json as JSON
+from geopy.geocoders import Nominatim
 
 # Format: country, region, city, postcode, road, and road numbers.
 # IMPORTANT: We'll use LXML parser for the BeautifulSoup object, because it's faster than the default parser
@@ -53,13 +52,13 @@ def parse_parquet_file(file, selected_column):
 # Function to crawl websites and get links to about and contact pages (if they exist)
 # We do this so we can get the contact information of the companies
 def crawl_websites(domain):
-    headers = {"User-Agent": user_agents[random.randint(0, len(user_agents) - 1)]}
+    headers = {"User-Agent": user_agents[np.random.randint(0, len(user_agents))]}
     print(f"Crawling website: {domain}")
     new_links = []
     new_links.append(f"https://{domain}")  # add the main page to the list of links
     try:
         response = requests.get(
-            f"https://{domain}", timeout=TIMEOUT, headers=headers
+            f"https://{domain}", timeout=TIMEOUT, headers=headers, allow_redirects=True
         ).text
         if (
             not "404" in response
@@ -110,6 +109,12 @@ def create_final_address(location_from_street, location_from_zip):
     if location_from_zip:
         address_from_zip = location_from_zip.raw.get("address")
 
+    if not address_from_street and not address_from_zip:
+        return None
+
+    print(f"address_from_street: {address_from_street}")
+    print(f"address_from_zip: {address_from_zip}")
+
     country = choose_field(address_from_street, address_from_zip, "country")
     region = choose_field(address_from_street, address_from_zip, "state")
     city = choose_field(address_from_street, address_from_zip, "city")
@@ -154,9 +159,14 @@ def get_location(soup, regex, url):
 
 
 def parse_address(url):
-    headers = {"User-Agent": user_agents[random.randint(0, len(user_agents) - 1)]}
+    headers = {"User-Agent": user_agents[np.random.randint(0, len(user_agents))]}
     try:
-        response = requests.get(url, timeout=TIMEOUT, headers=headers)
+        response = requests.get(
+            url,
+            timeout=TIMEOUT,
+            headers=headers,
+            allow_redirects=True,
+        )
         response.raise_for_status()
     except requests.exceptions.HTTPError as https_err:
         print(f"https error occurred while getting {url}")
@@ -218,13 +228,19 @@ if __name__ == "__main__":
     #         print(links)
     #         all_links.extend(links)
 
+    out = open("list-of-addresses.txt", "w")
+
     # for testing purposes:
-    for i in range(20):
+    for i in range(50):
         links = crawl_websites(df[i])
         for link in links:
             output = parse_address(link)
             if output:
                 print(output)
+                out.write(f"{output}\n")
 
     end = timer()
-    print(f"Time elapsed: {end - start} seconds")
+    seconds = end - start
+    m, s = divmod(seconds, 60)
+    print(f"Time elapsed: {m} minutes and {s} seconds")
+    out.close()
