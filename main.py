@@ -1,8 +1,4 @@
-import requests
-import numpy as np
-from bs4 import BeautifulSoup as bs
 from timeit import default_timer as timer
-from geopy.geocoders import Nominatim
 
 from utils.io_operations import ParquetHandler
 from utils.crawler import WebsiteCrawler
@@ -16,14 +12,9 @@ from utils.parser import AddressParser
 # TODO: add logging (maybe use the logging module)
 # TODO: Add try except for every file open/save operation
 
-# Constants
-
 TIMEOUT = 2  # timeout for requests
 
 user_agents = open("user-agents.txt", "r").read().split("\n")
-
-# End of Constants
-
 
 if __name__ == "__main__":
     start = timer()
