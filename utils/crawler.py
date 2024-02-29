@@ -14,7 +14,7 @@ class WebsiteCrawler:
     #     """
     #     return self.user_agents[np.random.randint(0, len(self.user_agents))]
 
-    def crawl_website(self, domain, user_agent):
+    def crawl_website(self, domain, user_agent, output_arr):
         """
         Crawls the website and returns a list of links found on the website
         We are specifically looking for links that contain "about" or "contact" in them
@@ -45,16 +45,20 @@ class WebsiteCrawler:
                 soup = bs(response, "lxml")
                 for link in soup.find_all("a"):
                     href = link.get("href")
-                    if "about" in href or "contact" in href:
+                    if "about" in href or "contact" in href and not "mailto" in href:
                         if domain in href:
                             new_links.append(href)
                         else:
-                            if "/" in href:
-                                new_links.append(f"https://{domain}{href}")
+                            if not "http" in href:
+                                if "/" == href[0]:
+                                    new_links.append(f"https://{domain}{href}")
+                                else:
+                                    new_links.append(f"https://{domain}/{href}")
                             else:
-                                new_links.append(f"https://{domain}/{href}")
+                                new_links.append(href)
         except:
             # do nothing
             pass
         new_links = list(set(new_links))  # remove duplicates
-        return new_links
+        output_arr.extend(new_links)
+        # return new_links

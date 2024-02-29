@@ -2,6 +2,9 @@ import re
 import requests
 from bs4 import BeautifulSoup as bs
 from geopy.geocoders import Nominatim
+from geopy.extra.rate_limiter import RateLimiter
+
+# Format: country, region, city, postcode, road, and road numbers.
 
 
 class AddressParser:
@@ -13,7 +16,12 @@ class AddressParser:
             r"(?i)(^|\s)\d{2,7}\b\s+.{5,30}\b\s+(?:road|rd|way|street|st|str|avenue|ave|boulevard|blvd|lane|ln|drive|dr|terrace|ter|place|pl|court|ct)(?:\.|\s|$)"
         )
         self.po_box_regex = re.compile(r"(?i)(?:po|p.o.)\s+(?:box)")
-        self.num_regex = re.compile(r"\d+")
+        self.geocode = RateLimiter(
+            self.geolocator.geocode,
+            max_retries=3,
+            error_wait_seconds=5.0,
+            swallow_exceptions=True,
+        )
 
     def create_final_address(self, location_from_street, location_from_zip):
         if not location_from_street and not location_from_zip:
@@ -54,7 +62,7 @@ class AddressParser:
         field1 = first.get(field) if first else None
         field2 = second.get(field) if second else None
 
-        if field == "road" and field1:
+        if field == "road" and field1:  # prioritize the road from the street address
             return field1
 
         return field2 or field1
@@ -62,7 +70,9 @@ class AddressParser:
     def get_location(self, soup, regex, url):
         try:
             for val in soup.find_all(string=regex):
-                if len(val) <= 100:
+                if (
+                    len(val) <= 100
+                ):  # if the string is too long, it's probably not an address
                     location = re.search(regex, val).group(0)
                     location = re.sub(self.po_box_regex, "", location)
                     return location
@@ -86,7 +96,7 @@ class AddressParser:
             print(f"https error occurred while getting {url}")
             return
         except Exception as err:
-            print(f"Error occurred while getting {url}")
+            print(f"Error occurred while getting {url}. Error {err}")
             return
 
         try:
@@ -128,5 +138,8 @@ class AddressParser:
             print(f"Error getting final address from page {url}. Error {e}")
 
         if final_address:
-            return {"domain": url.split("/")[2], "address": final_address}
+            return f"{url.split('/')[2]}, {final_address['country']}, {final_address['region']}, {final_address['city']}, {final_address['postcode']}, {final_address['road']}, {final_address['house_number']}"
+            # return {"domain": url.split("/")[2], "address": final_address}
+            # output_arr.extend({"domain": url.split("/")[2], "address": final_address})
+
         return None
