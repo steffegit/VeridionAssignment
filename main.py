@@ -1,58 +1,37 @@
 from timeit import default_timer as timer
+from threading import Thread, Semaphore
 
 from utils.io_operations import ParquetHandler
 from utils.crawler import WebsiteCrawler
 from utils.user_agent_provider import UserAgentProvider
 from utils.parser import AddressParser
 
-from threading import Thread, Semaphore
-
-# IMPORTANT: We'll use LXML parser for the BeautifulSoup object, because it's faster than the default parser
-
-# TODO: Add color for errors and success messages
-# TODO: add logging (maybe use the logging module)
-# TODO: Add try except for every file open/save operation
-
 TIMEOUT = 2  # timeout for requests
-
-user_agents = open("user-agents.txt", "r").read().split("\n")
-
 NUM_THREADS = 20
-
 semaphore = Semaphore(NUM_THREADS)
 
 
 def crawl_website_with_semaphore(df_element, user_agent, links):
-    # Acquire the semaphore
     semaphore.acquire()
     try:
-        # Call the original function
-        Crawler.crawl_website(df_element, user_agent, links)
+        WebsiteCrawler(TIMEOUT).crawl_website(df_element, user_agent, links)
     finally:
-        # Release the semaphore
         semaphore.release()
 
 
-if __name__ == "__main__":
+def main():
     start = timer()
 
-    # TODO: make the path be modifiable
-
     path = "list of company websites.snappy.parquet"
-    ParquetHandler = ParquetHandler(path)
-    Crawler = WebsiteCrawler(TIMEOUT)
-    UserAgentProvider = UserAgentProvider(user_agents)
-    AddressParser = AddressParser(timeout=TIMEOUT)
+    user_agents = open("user-agents.txt", "r").read().split("\n")
 
-    # Parse parquet file and get the domain column
-    df = ParquetHandler.parse_parquet("domain")  # size of dataframe is 2479 rows
+    parquet_handler = ParquetHandler(path)
+    user_agent_provider = UserAgentProvider(user_agents)
+    address_parser = AddressParser(timeout=TIMEOUT)
+
+    df = parquet_handler.parse_parquet("domain")
 
     threads = []
-
-    # TODO: First, we need to crawl the website and get the links
-    # Then, we need to parse the links and get the addresses
-    # Finally, we need to save the addresses in a file
-
     links = []
 
     for i in range(df.size):
@@ -61,7 +40,7 @@ if __name__ == "__main__":
             target=crawl_website_with_semaphore,
             args=(
                 element,
-                UserAgentProvider.get_random_user_agent(),
+                user_agent_provider.get_random_user_agent(),
                 links,
             ),
         )
@@ -73,19 +52,17 @@ if __name__ == "__main__":
 
     print("DONE CRAWLING FOR MORE LINKS")
 
+    with open("links.txt", "w") as out:
+        for link in links:
+            out.write(f"{link}\n")
+
     list_of_addresses = []
 
-    # Write list_of_addresses to a csv file
     for link in links:
-        output = AddressParser.parse_address(
-            link, UserAgentProvider.get_random_user_agent()
+        print(f"Processing the {links.index(link) + 1} link:")
+        address_parser.parse_address(
+            link, user_agent_provider.get_random_user_agent(), list_of_addresses
         )
-        if output is not None:
-            list_of_addresses.append(output)
-
-    list_of_addresses = list(set(list_of_addresses))
-
-    # ParquetHandler.write_to_csv("output.csv", list_of_addresses)
 
     with open("output-backup.csv", "w") as f:
         for item in list_of_addresses:
@@ -96,3 +73,7 @@ if __name__ == "__main__":
     m, s = divmod(seconds, 60)
     print(f"Time elapsed: {m} minutes and {s} seconds")
     print(f"Extracted {len(list_of_addresses)} adresses from {df.size} domains")
+
+
+if __name__ == "__main__":
+    main()

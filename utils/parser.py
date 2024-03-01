@@ -1,8 +1,11 @@
+import random
+import string
 import re
 import requests
 from bs4 import BeautifulSoup as bs
 from geopy.geocoders import Nominatim
 from geopy.extra.rate_limiter import RateLimiter
+import urllib3
 
 # Format: country, region, city, postcode, road, and road numbers.
 
@@ -10,7 +13,7 @@ from geopy.extra.rate_limiter import RateLimiter
 class AddressParser:
     def __init__(self, timeout=2):
         self.timeout = timeout
-        self.geolocator = Nominatim(user_agent="veridionAssignment")
+        self.geolocator = Nominatim(user_agent=self.geolocatorRandomUserAgent())
         self.zip_code_regex = re.compile(r"\b\d{5}(?:[-\s]\d{4})?\b")
         self.street_regex = re.compile(
             r"(?i)(^|\s)\d{2,7}\b\s+.{5,30}\b\s+(?:road|rd|way|street|st|str|avenue|ave|boulevard|blvd|lane|ln|drive|dr|terrace|ter|place|pl|court|ct)(?:\.|\s|$)"
@@ -23,17 +26,38 @@ class AddressParser:
             swallow_exceptions=True,
         )
 
+    def geolocatorRandomUserAgent(self):
+        """
+        Generates a random user agent for the geolocator so that it doesn't get blocked / rate limited
+        :return: str
+        """
+
+        arr = [
+            *f"veridionAssignment{''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10))}"
+        ]
+        random.shuffle(arr)
+        str = "".join(arr)
+
+        return str
+
     def create_final_address(self, location_from_street, location_from_zip):
+        """
+        Creates a final address from the street and zip code
+        :param location_from_street: dict
+        :param location_from_zip: dict
+        :return: dict
+        """
+
         if not location_from_street and not location_from_zip:
             return None
 
-        address_from_street = None
-        address_from_zip = None
-
-        if location_from_street:
-            address_from_street = location_from_street.raw.get("address")
-        if location_from_zip:
-            address_from_zip = location_from_zip.raw.get("address")
+        # Get the raw address from the locations
+        address_from_street = (
+            location_from_street.raw.get("address") if location_from_street else None
+        )
+        address_from_zip = (
+            location_from_zip.raw.get("address") if location_from_zip else None
+        )
 
         if not address_from_street and not address_from_zip:
             return None
@@ -49,6 +73,7 @@ class AddressParser:
             address_from_street, address_from_zip, "house_number"
         )
 
+        # Return the final address as a dictionary
         return {
             "country": country,
             "region": region,
@@ -59,6 +84,13 @@ class AddressParser:
         }
 
     def get_field_value(self, first, second, field):
+        """
+        Gets the field value from the first or second location
+        :param first: dict
+        :param second: dict
+        :param field: str
+        :return: str
+        """
         field1 = first.get(field) if first else None
         field2 = second.get(field) if second else None
 
@@ -68,6 +100,13 @@ class AddressParser:
         return field2 or field1
 
     def get_location(self, soup, regex, url):
+        """
+        Gets the location from the soup
+        :param soup: BeautifulSoup
+        :param regex: re / str
+        :param url: str
+        :return: str
+        """
         try:
             for val in soup.find_all(string=regex):
                 if (
@@ -82,64 +121,84 @@ class AddressParser:
             print(f"Unexpected error {e} occurred while getting location from {url}")
         return None
 
-    def parse_address(self, url, user_agent):
-        headers = {"User-Agent": user_agent}
-        try:
-            response = requests.get(
-                url,
-                timeout=self.timeout,
-                headers=headers,
-                allow_redirects=True,
-            )
-            response.raise_for_status()
-        except requests.exceptions.HTTPError as https_err:
-            print(f"https error occurred while getting {url}")
-            return
-        except Exception as err:
-            print(f"Error occurred while getting {url}. Error {err}")
+    def parse_address(self, url_list, user_agent, output_arr):
+        """
+        Parses the address from the url_list
+        :param url_list: list
+        :param user_agent: str
+        :param output_arr: list
+        :return:
+        """
+        list_of_street_addresses = []
+        list_of_zip_codes = []
+        if not url_list:
             return
 
-        try:
-            soup = bs(response.text, "lxml")
-        except Exception as e:
-            print(f"Error occurred while parsing page {url}. Error: {e}")
-            return
-
-        street_address = self.get_location(soup, self.street_regex, url)
-        zip_code = self.get_location(soup, self.zip_code_regex, url)
-
-        location_from_street = None
-        location_from_zip = None
-
-        if street_address:
+        urllib3.disable_warnings()
+        for url in url_list:
+            headers = {"User-Agent": user_agent}
             try:
-                location_from_street = self.geolocator.geocode(
-                    street_address, addressdetails=True, timeout=self.timeout
+                response = requests.get(
+                    url,
+                    timeout=self.timeout,
+                    headers=headers,
+                    allow_redirects=True,
+                    verify=False,
+                )
+                response.raise_for_status()
+            except requests.exceptions.HTTPError as https_err:
+                print(f"https error occurred while getting {url}")
+                return
+            except Exception as err:
+                print(f"Error occurred while getting {url}. Error {err}")
+                return
+
+            try:
+                soup = bs(response.text, "lxml")
+            except Exception as e:
+                print(f"Error occurred while parsing page {url}. Error: {e}")
+                return
+
+            street_address = self.get_location(soup, self.street_regex, url)
+            zip_code = self.get_location(soup, self.zip_code_regex, url)
+
+            location_from_street = None
+            location_from_zip = None
+
+            if street_address and street_address not in list_of_street_addresses:
+                list_of_street_addresses.append(street_address)
+                try:
+                    location_from_street = self.geolocator.geocode(
+                        street_address, addressdetails=True, timeout=self.timeout
+                    )
+                except Exception as e:
+                    print(
+                        f"Error validating location from the street_address {street_address} from page {url}. Error: {e}"
+                    )
+
+            if zip_code and zip_code not in list_of_zip_codes:
+                list_of_zip_codes.append(zip_code)
+                try:
+                    location_from_zip = self.geolocator.geocode(zip_code)
+                except Exception as e:
+                    print(
+                        f"Error validating location from the zip_code {zip_code} from page {url}. Error: {e}"
+                    )
+
+            final_address = None
+            try:
+                final_address = self.create_final_address(
+                    location_from_street, location_from_zip
                 )
             except Exception as e:
-                print(
-                    f"Error validating location from the street_address {street_address} from page {url}. Error: {e}"
+                print(f"Error getting final address from page {url}. Error {e}")
+
+            if final_address:
+                output_arr.append(
+                    f"{url.split('/')[2]}, {final_address['country']}, {final_address['region']}, {final_address['city']}, {final_address['postcode']}, {final_address['road']}, {final_address['house_number']}"
                 )
+                break  # we only need one address per website
+                # return {"domain": url.split("/")[2], "address": final_address}
+                # output_arr.extend({"domain": url.split("/")[2], "address": final_address})
 
-        if zip_code:
-            try:
-                location_from_zip = self.geolocator.geocode(zip_code)
-            except Exception as e:
-                print(
-                    f"Error validating location from the zip_code {zip_code} from page {url}. Error: {e}"
-                )
-
-        final_address = None
-        try:
-            final_address = self.create_final_address(
-                location_from_street, location_from_zip
-            )
-        except Exception as e:
-            print(f"Error getting final address from page {url}. Error {e}")
-
-        if final_address:
-            return f"{url.split('/')[2]}, {final_address['country']}, {final_address['region']}, {final_address['city']}, {final_address['postcode']}, {final_address['road']}, {final_address['house_number']}"
-            # return {"domain": url.split("/")[2], "address": final_address}
-            # output_arr.extend({"domain": url.split("/")[2], "address": final_address})
-
-        return None
+            return

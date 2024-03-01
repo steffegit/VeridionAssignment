@@ -1,6 +1,6 @@
 import requests
 from bs4 import BeautifulSoup as bs
-import numpy as np
+import urllib3
 
 
 class WebsiteCrawler:
@@ -21,6 +21,9 @@ class WebsiteCrawler:
         :param domain: str
         :return: list
         """
+
+        urllib3.disable_warnings()
+
         headers = {"User-Agent": user_agent}
         print(f"Crawling website: {domain}")
         new_links = [f"https://{domain}"]  # add the main page to the list of links
@@ -30,6 +33,7 @@ class WebsiteCrawler:
                 timeout=self.timeout,
                 headers=headers,
                 allow_redirects=True,
+                verify=False,
             )
 
             # if the main page redirects to another page, we change the domain to the redirected page's domain
@@ -43,22 +47,28 @@ class WebsiteCrawler:
                 or not "not found" in response
             ):
                 soup = bs(response, "lxml")
-                for link in soup.find_all("a"):
-                    href = link.get("href")
-                    if "about" in href or "contact" in href and not "mailto" in href:
-                        if domain in href:
-                            new_links.append(href)
-                        else:
-                            if not "http" in href:
-                                if "/" == href[0]:
-                                    new_links.append(f"https://{domain}{href}")
-                                else:
-                                    new_links.append(f"https://{domain}/{href}")
-                            else:
+                if soup.find_all("a"):
+                    for link in soup.find_all("a"):
+                        href = link.get("href")
+                        if (
+                            "about" in href
+                            or "contact" in href
+                            and not "mailto" in href
+                        ):
+                            if domain in href:
                                 new_links.append(href)
-        except:
+                            else:
+                                if not "http" in href:
+                                    if "/" == href[0]:
+                                        new_links.append(f"https://{domain}{href}")
+                                    else:
+                                        new_links.append(f"https://{domain}/{href}")
+                                else:
+                                    new_links.append(href)
+        except Exception as e:
+            # print(f"Error occured when crawling {domain}. Err: {e}")
             # do nothing
             pass
         new_links = list(set(new_links))  # remove duplicates
-        output_arr.extend(new_links)
+        output_arr.append(new_links)
         # return new_links
