@@ -3,8 +3,6 @@ import sys
 import pandas as pd
 from fastparquet import ParquetFile
 
-nbs_regex_pattern = re.compile("\xa0")
-
 
 class IOHandler:
     def format_field(field):
@@ -32,20 +30,19 @@ class IOHandler:
         :param address_array: The array of addresses to be written to the parquet file
         :param file_name: str
         """
+
         try:
             # Create a list of dictionaries, each representing a row of data
             data = []
             for element in address_array:
                 row = {
-                    "domain": self.format_field(element["domain"]),
-                    "country": self.format_field(element["address"])["country"],
-                    "region": self.format_field(element["address"])["region"],
-                    "city": self.format_field(element["address"])["city"],
-                    "postcode": self.format_field(element["address"])["postcode"],
-                    "road": self.format_field(element["address"])["road"],
-                    "house_number": self.format_field(element["address"])[
-                        "house_number"
-                    ],
+                    "domain": element.get("domain"),
+                    "country": element.get("address", {}).get("country", ""),
+                    "region": element.get("address", {}).get("region", ""),
+                    "city": element.get("address", {}).get("city", ""),
+                    "postcode": element.get("address", {}).get("postcode", ""),
+                    "road": element.get("address", {}).get("road", ""),
+                    "house_number": element.get("address", {}).get("house_number", ""),
                 }
                 data.append(row)
 
@@ -53,8 +50,43 @@ class IOHandler:
             df = pd.DataFrame(data)
 
             # Write the DataFrame to a parquet file
-            df.to_parquet("addresses.snappy.parquet", compression="snappy")
+            df.to_parquet("output/addresses.snappy.parquet", compression="snappy")
+            print("Addresses written to addresses.snappy.parquet in the output folder.")
         except Exception as e:
             print("Error: Could not write to parquet file")
+            print(str(e))
+            sys.exit(1)
+
+    def write_to_csv(self, address_array):
+        """
+        Write the addresses to a csv file
+        :param address_array: The array of addresses to be written to the csv file
+        """
+
+        try:
+            # Create a list of dictionaries, each representing a row of data
+            data = []
+            for element in address_array:
+                row = {
+                    "domain": self.format_field(element["domain"]),
+                    "country": self.format_field(element["address"]["country"]),
+                    "region": self.format_field(element["address"]["region"]),
+                    "city": self.format_field(element["address"]["city"]),
+                    "postcode": self.format_field(element["address"]["postcode"]),
+                    "road": self.format_field(element["address"]["road"]),
+                    "house_number": self.format_field(
+                        element["address"]["house_number"]
+                    ),
+                }
+                data.append(row)
+
+            # Create a DataFrame from the list of dictionaries
+            df = pd.DataFrame(data)
+
+            # Write the DataFrame to a csv file
+            df.to_csv("output/addresses.csv", index=False)
+            print("Addresses written to addresses.csv in the output folder.")
+        except Exception as e:
+            print("Error: Could not write to csv file")
             print(str(e))
             sys.exit(1)

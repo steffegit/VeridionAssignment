@@ -91,6 +91,7 @@ class AddressParser:
         :param field: str
         :return: str
         """
+
         field1 = first.get(field) if first else None
         field2 = second.get(field) if second else None
 
@@ -107,6 +108,7 @@ class AddressParser:
         :param url: str
         :return: str
         """
+
         try:
             for val in soup.find_all(string=regex):
                 if (
@@ -129,6 +131,7 @@ class AddressParser:
         :param output_arr: list
         :return:
         """
+
         list_of_street_addresses = []
         list_of_zip_codes = []
         if not url_list:
@@ -194,13 +197,9 @@ class AddressParser:
                 print(f"Error getting final address from page {url}. Error {e}")
 
             if final_address:
-                # output_arr.append(
-                #     f"{url.split('/')[2]}, {final_address['country']}, {final_address['region']}, {final_address['city']}, {final_address['postcode']}, {final_address['road']}, {final_address['house_number']}"
-                # )
                 output_arr.append(
                     {"domain": url.split("/")[2], "address": final_address}
                 )
-                # output_arr.extend({"domain": url.split("/")[2], "address": final_address})
                 break  # we only need one address per website
 
             return

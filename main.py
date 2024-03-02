@@ -1,5 +1,10 @@
 from timeit import default_timer as timer
 from threading import Thread, Semaphore
+import sys
+from tkinter import Tk
+from tkinter.filedialog import askopenfilename
+from colorama import init as colorama_init
+from colorama import Fore, Style
 
 from utils.io_operations import IOHandler
 from utils.crawler import WebsiteCrawler
@@ -27,11 +32,11 @@ def crawl_website_with_semaphore(df_element, user_agent, links):
         semaphore.release()
 
 
-def crawl_websites(df, user_agent_provider):
+def crawl_websites(df, no_of_websites, user_agent_provider):
     threads = []
     links = []
 
-    for i in range(df.size):
+    for i in range(no_of_websites):
         element = df[i]
         t = Thread(
             target=crawl_website_with_semaphore,
@@ -53,9 +58,48 @@ def crawl_websites(df, user_agent_provider):
 def main():
     start = timer()
 
-    # Define file paths and parameters
-    path = "list of company websites.snappy.parquet"
-    user_agents = open("user-agents.txt", "r").read().split("\n")
+    colorama_init()
+
+    def print_error_and_exit(error_message):
+        print(f"{Fore.RED}ERROR: {error_message}{Style.RESET_ALL}")
+        sys.exit(1)
+
+    logo = f"""
+{Fore.YELLOW}
+    ___       __    __                       ____                           
+   /   | ____/ /___/ /_______  __________   / __ \____ ______________  _____
+  / /| |/ __  / __  / ___/ _ \/ ___/ ___/  / /_/ / __ `/ ___/ ___/ _ \/ ___/
+ / ___ / /_/ / /_/ / /  /  __(__  |__  )  / ____/ /_/ / /  (__  )  __/ /    
+/_/  |_\__,_/\__,_/_/   \___/____/____/  /_/    \__,_/_/  /____/\___/_/     
+                                                                            
+                            {Fore.GREEN}Made by: {Fore.RED}@steffegit{Style.RESET_ALL}
+                                                                            """
+
+    print(logo)
+
+    # Create the Tkinter root
+    Tk().withdraw()
+
+    # Ask the user to select a file
+    print(
+        f"{Fore.CYAN}INPUT: Please select the file containing the list of company websites\n{Style.RESET_ALL}"
+    )
+
+    path = askopenfilename(
+        title="Choose the file containing the list of company websites",
+    )
+
+    if path:
+        print(f"File loaded successfully: {path}")
+    else:
+        print_error_and_exit("No file selected")
+
+    try:
+        print("Loading user agents")
+        user_agents = open("user-agents.txt", "r").read().split("\n")
+        print("User agents loaded successfully")
+    except:
+        print_error_and_exit("Could not load user agents")
 
     # Initialize handlers and providers
     io_handler = IOHandler()
@@ -66,13 +110,17 @@ def main():
     df = io_handler.parse_parquet(path, "domain")
 
     # Crawl the websites and get the links
-    links = crawl_websites(df, user_agent_provider)
+    links = crawl_websites(df, df.size, user_agent_provider)
 
     # Parse the addresses from the links
-    list_of_addresses = [
-        address_parser.parse_address(link, user_agent_provider.get_random_user_agent())
-        for link in links
-    ]
+    list_of_addresses = []
+    for link in links:
+        print(
+            f"{Fore.LIGHTGREEN_EX}[{links.index(link) + 1}] {Style.RESET_ALL}Extracting addresses from {Fore.YELLOW}{link[0].split('/')[2]}{Style.RESET_ALL}"
+        )
+        address_parser.parse_address(
+            link, user_agent_provider.get_random_user_agent(), list_of_addresses
+        )
 
     # Write the addresses to a parquet file
     io_handler.write_to_parquet(list_of_addresses)
@@ -81,8 +129,11 @@ def main():
     end = timer()
     seconds = end - start
     m, s = divmod(seconds, 60)
-    print(f"Time elapsed: {m} minutes and {s} seconds")
-    print(f"Extracted {len(list_of_addresses)} addresses from {df.size} domains")
+
+    print(f"Time elapsed: {Fore.GREEN}{m} minutes and {s} seconds{Style.RESET_ALL}")
+    print(
+        f"Extracted {Fore.GREEN}{len(list_of_addresses)}{Style.RESET_ALL} addresses from {Fore.YELLOW}{df.size}{Style.RESET_ALL} domains"
+    )
 
 
 if __name__ == "__main__":
