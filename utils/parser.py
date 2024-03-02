@@ -194,11 +194,13 @@ class AddressParser:
                 print(f"Error getting final address from page {url}. Error {e}")
 
             if final_address:
+                # output_arr.append(
+                #     f"{url.split('/')[2]}, {final_address['country']}, {final_address['region']}, {final_address['city']}, {final_address['postcode']}, {final_address['road']}, {final_address['house_number']}"
+                # )
                 output_arr.append(
-                    f"{url.split('/')[2]}, {final_address['country']}, {final_address['region']}, {final_address['city']}, {final_address['postcode']}, {final_address['road']}, {final_address['house_number']}"
+                    {"domain": url.split("/")[2], "address": final_address}
                 )
-                break  # we only need one address per website
-                # return {"domain": url.split("/")[2], "address": final_address}
                 # output_arr.extend({"domain": url.split("/")[2], "address": final_address})
+                break  # we only need one address per website
 
             return

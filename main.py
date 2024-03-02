@@ -1,7 +1,7 @@
 from timeit import default_timer as timer
 from threading import Thread, Semaphore
 
-from utils.io_operations import ParquetHandler
+from utils.io_operations import IOHandler
 from utils.crawler import WebsiteCrawler
 from utils.user_agent_provider import UserAgentProvider
 from utils.parser import AddressParser
@@ -12,25 +12,22 @@ semaphore = Semaphore(NUM_THREADS)
 
 
 def crawl_website_with_semaphore(df_element, user_agent, links):
+    """
+    Crawl website with semaphore
+    :param df_element: element from the dataframe
+    :param user_agent: str
+    :param links: list
+    """
+
     semaphore.acquire()
+
     try:
         WebsiteCrawler(TIMEOUT).crawl_website(df_element, user_agent, links)
     finally:
         semaphore.release()
 
 
-def main():
-    start = timer()
-
-    path = "list of company websites.snappy.parquet"
-    user_agents = open("user-agents.txt", "r").read().split("\n")
-
-    parquet_handler = ParquetHandler(path)
-    user_agent_provider = UserAgentProvider(user_agents)
-    address_parser = AddressParser(timeout=TIMEOUT)
-
-    df = parquet_handler.parse_parquet("domain")
-
+def crawl_websites(df, user_agent_provider):
     threads = []
     links = []
 
@@ -50,29 +47,42 @@ def main():
     for t in threads:
         t.join()
 
-    print("DONE CRAWLING FOR MORE LINKS")
+    return links
 
-    with open("links.txt", "w") as out:
-        for link in links:
-            out.write(f"{link}\n")
 
-    list_of_addresses = []
+def main():
+    start = timer()
 
-    for link in links:
-        print(f"Processing the {links.index(link) + 1} link:")
-        address_parser.parse_address(
-            link, user_agent_provider.get_random_user_agent(), list_of_addresses
-        )
+    # Define file paths and parameters
+    path = "list of company websites.snappy.parquet"
+    user_agents = open("user-agents.txt", "r").read().split("\n")
 
-    with open("output-backup.csv", "w") as f:
-        for item in list_of_addresses:
-            f.write(f"{item}\n")
+    # Initialize handlers and providers
+    io_handler = IOHandler()
+    user_agent_provider = UserAgentProvider(user_agents)
+    address_parser = AddressParser(timeout=TIMEOUT)
 
+    # Read the domain data from the parquet file
+    df = io_handler.parse_parquet(path, "domain")
+
+    # Crawl the websites and get the links
+    links = crawl_websites(df, user_agent_provider)
+
+    # Parse the addresses from the links
+    list_of_addresses = [
+        address_parser.parse_address(link, user_agent_provider.get_random_user_agent())
+        for link in links
+    ]
+
+    # Write the addresses to a parquet file
+    io_handler.write_to_parquet(list_of_addresses)
+
+    # Calculate and print the elapsed time
     end = timer()
     seconds = end - start
     m, s = divmod(seconds, 60)
     print(f"Time elapsed: {m} minutes and {s} seconds")
-    print(f"Extracted {len(list_of_addresses)} adresses from {df.size} domains")
+    print(f"Extracted {len(list_of_addresses)} addresses from {df.size} domains")
 
 
 if __name__ == "__main__":
