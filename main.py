@@ -13,6 +13,7 @@ from utils.parser import AddressParser
 
 TIMEOUT = 5  # timeout for requests
 NUM_THREADS = 20
+CHUNK_SIZE = 500
 semaphore = Semaphore(NUM_THREADS)
 
 
@@ -116,22 +117,29 @@ def main():
 
     # Read the domain data from the parquet file
     df = io_handler.parse_parquet(path, "domain")
-
-    # Crawl the websites and get the links
-    responses = crawl_websites(df, df.size, user_agent_provider)
-
-    # Parse the addresses from the links
     list_of_addresses = []
-    for element in responses:
+
+    for i in range(0, df.size, CHUNK_SIZE):
         print(
-            f"{Fore.LIGHTGREEN_EX}[{responses.index(element) + 1}] {Style.RESET_ALL}Extracting address from {element[0].get('domain')}{Style.RESET_ALL}"
+            f"{Fore.LIGHTGREEN_EX}[{i + 1}-{i + CHUNK_SIZE}] {Style.RESET_ALL}Crawling websites {i + 1}-{i + CHUNK_SIZE} out of {df.size}"
         )
 
-        address_parser.parse_address(
-            element,
-            user_agent_provider.get_random_user_agent(),
-            list_of_addresses,
+        # Crawl the websites and get the links
+        responses = crawl_websites(
+            df[i : i + CHUNK_SIZE], CHUNK_SIZE, user_agent_provider
         )
+
+        # Parse the addresses from the links
+        for element in responses:
+            print(
+                f"{Fore.LIGHTGREEN_EX}[{responses.index(element) + 1}] {Style.RESET_ALL}Extracting address from {element[0].get('domain')}{Style.RESET_ALL}"
+            )
+
+            address_parser.parse_address(
+                element,
+                user_agent_provider.get_random_user_agent(),
+                list_of_addresses,
+            )
 
     # Write the addresses to a parquet file
     io_handler.write_to_parquet(list_of_addresses)
