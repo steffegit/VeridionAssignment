@@ -3,14 +3,6 @@ from bs4 import BeautifulSoup as bs
 import urllib3
 from colorama import init as colorama_init
 from colorama import Fore, Style
-import logging
-
-logging.basicConfig(
-    filename="output/failed_domains.log",
-    filemode="w",
-    format="%(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
 
 
 class WebsiteCrawler:
@@ -85,7 +77,6 @@ class WebsiteCrawler:
                                     else:
                                         new_links.append(href)
         except Exception as e:
-            logging.error(f"{domain}")
             pass
 
         new_links = list(set(new_links))  # remove duplicates

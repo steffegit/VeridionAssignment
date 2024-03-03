@@ -12,8 +12,8 @@ from utils.crawler import WebsiteCrawler
 from utils.user_agent_provider import UserAgentProvider
 from utils.parser import AddressParser
 
-TIMEOUT = 5  # timeout for requests
-NUM_THREADS = 20
+TIMEOUT = 2  # timeout for requests
+NUM_THREADS = 40
 CHUNK_SIZE = 100  # number of websites to crawl at once
 semaphore = Semaphore(NUM_THREADS)
 
