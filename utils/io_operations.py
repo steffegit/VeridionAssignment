@@ -5,10 +5,6 @@ from fastparquet import ParquetFile
 
 
 class IOHandler:
-    def format_field(field):
-        if field is None:
-            return ""
-
     def parse_parquet(self, file_path, selected_column):
         """
         Parse the parquet file and return the selected column as a pandas dataframe
@@ -68,15 +64,13 @@ class IOHandler:
             data = []
             for element in address_array:
                 row = {
-                    "domain": self.format_field(element["domain"]),
-                    "country": self.format_field(element["address"]["country"]),
-                    "region": self.format_field(element["address"]["region"]),
-                    "city": self.format_field(element["address"]["city"]),
-                    "postcode": self.format_field(element["address"]["postcode"]),
-                    "road": self.format_field(element["address"]["road"]),
-                    "house_number": self.format_field(
-                        element["address"]["house_number"]
-                    ),
+                    "domain": element.get("domain"),
+                    "country": element.get("address", {}).get("country", ""),
+                    "region": element.get("address", {}).get("region", ""),
+                    "city": element.get("address", {}).get("city", ""),
+                    "postcode": element.get("address", {}).get("postcode", ""),
+                    "road": element.get("address", {}).get("road", ""),
+                    "house_number": element.get("address", {}).get("house_number", ""),
                 }
                 data.append(row)
 

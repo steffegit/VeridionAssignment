@@ -96,7 +96,7 @@ def main():
 
     try:
         print("Loading user agents")
-        user_agents = open("user-agents.txt", "r").read().split("\n")
+        user_agents = open("input/user-agents.txt", "r").read().split("\n")
         print("User agents loaded successfully")
     except:
         print_error_and_exit("Could not load user agents")
