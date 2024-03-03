@@ -1,7 +1,8 @@
-import re
 import sys
 import pandas as pd
 from fastparquet import ParquetFile
+from colorama import init as colorama_init
+from colorama import Fore, Style
 
 
 class IOHandler:
@@ -47,9 +48,11 @@ class IOHandler:
 
             # Write the DataFrame to a parquet file
             df.to_parquet("output/addresses.snappy.parquet", compression="snappy")
-            print("Addresses written to addresses.snappy.parquet in the output folder.")
+            print(
+                "\nAddresses written to addresses.snappy.parquet in the output folder."
+            )
         except Exception as e:
-            print("Error: Could not write to parquet file")
+            print(f"{Fore.RED}Error: Could not write to parquet file{Style.RESET_ALL}")
             print(str(e))
             sys.exit(1)
 
@@ -79,8 +82,8 @@ class IOHandler:
 
             # Write the DataFrame to a csv file
             df.to_csv("output/addresses.csv", index=False)
-            print("Addresses written to addresses.csv in the output folder.")
+            print("\nAddresses written to addresses.csv in the output folder.")
         except Exception as e:
-            print("Error: Could not write to csv file")
+            print(f"{Fore.RED}Error: Could not write to csv file{Style.RESET_ALL}")
             print(str(e))
             sys.exit(1)

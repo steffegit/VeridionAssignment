@@ -11,7 +11,7 @@ from utils.crawler import WebsiteCrawler
 from utils.user_agent_provider import UserAgentProvider
 from utils.parser import AddressParser
 
-TIMEOUT = 2  # timeout for requests
+TIMEOUT = 5  # timeout for requests
 NUM_THREADS = 20
 semaphore = Semaphore(NUM_THREADS)
 
@@ -33,6 +33,14 @@ def crawl_website_with_semaphore(df_element, user_agent, responses):
 
 
 def crawl_websites(df, no_of_websites, user_agent_provider):
+    """
+    Crawl the websites
+    :param df: pandas dataframe
+    :param no_of_websites: int
+    :param user_agent_provider: UserAgentProvider
+    :return: list
+    """
+
     threads = []
     responses = []
 

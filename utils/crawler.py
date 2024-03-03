@@ -3,6 +3,14 @@ from bs4 import BeautifulSoup as bs
 import urllib3
 from colorama import init as colorama_init
 from colorama import Fore, Style
+import logging
+
+logging.basicConfig(
+    filename="output/failed_domains.log",
+    filemode="w",
+    format="%(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+)
 
 
 class WebsiteCrawler:
@@ -28,8 +36,9 @@ class WebsiteCrawler:
 
         headers = {"User-Agent": user_agent}
         print(f"Crawling website: {domain}")
-        new_links = []  # add the main page to the list of links
+        new_links = []
         responses = []
+
         try:
             response = requests.get(
                 f"https://{domain}",
@@ -59,25 +68,24 @@ class WebsiteCrawler:
                 if soup.find_all("a"):
                     for link in soup.find_all("a"):
                         href = link.get("href")
-                        if (
-                            "about" in href
-                            or "contact" in href
-                            and not "mailto" in href
-                        ):
-                            if domain in href:
-                                new_links.append(href)
-                            else:
-                                if not "http" in href:
-                                    if "/" == href[0]:
-                                        new_links.append(f"https://{domain}{href}")
-                                    else:
-                                        new_links.append(f"https://{domain}/{href}")
-                                else:
+                        if href:
+                            if (
+                                "about" in href
+                                or "contact" in href
+                                and not "mailto" in href
+                            ):
+                                if domain in href:
                                     new_links.append(href)
+                                else:
+                                    if not "http" in href:
+                                        if "/" == href[0]:
+                                            new_links.append(f"https://{domain}{href}")
+                                        else:
+                                            new_links.append(f"https://{domain}/{href}")
+                                    else:
+                                        new_links.append(href)
         except Exception as e:
-            print(
-                f"{Fore.RED}Could not crawl website: {domain}. Error: {e}{Style.RESET_ALL}"
-            )
+            logging.error(f"{domain}")
             pass
 
         new_links = list(set(new_links))  # remove duplicates

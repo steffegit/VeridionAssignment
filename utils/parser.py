@@ -11,6 +11,7 @@ import logging
 
 # Format: country, region, city, postcode, road, and road numbers.
 
+# Set up logging
 logging.basicConfig(
     filename="output/app.log",
     filemode="w",
@@ -143,11 +144,10 @@ class AddressParser:
 
     def parse_address(self, responses, user_agent, output_arr):
         """
-        Parses the address from the url_list
-        :param url_list: list
+        Parses the address from the responses
+        :param responses: list
         :param user_agent: str
         :param output_arr: list
-        :return:
         """
 
         list_of_street_addresses = []
