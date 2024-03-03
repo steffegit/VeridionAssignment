@@ -16,7 +16,7 @@ NUM_THREADS = 20
 semaphore = Semaphore(NUM_THREADS)
 
 
-def crawl_website_with_semaphore(df_element, user_agent, links):
+def crawl_website_with_semaphore(df_element, user_agent, responses):
     """
     Crawl website with semaphore
     :param df_element: element from the dataframe
@@ -27,14 +27,14 @@ def crawl_website_with_semaphore(df_element, user_agent, links):
     semaphore.acquire()
 
     try:
-        WebsiteCrawler(TIMEOUT).crawl_website(df_element, user_agent, links)
+        WebsiteCrawler(TIMEOUT).crawl_website(df_element, user_agent, responses)
     finally:
         semaphore.release()
 
 
 def crawl_websites(df, no_of_websites, user_agent_provider):
     threads = []
-    links = []
+    responses = []
 
     for i in range(no_of_websites):
         element = df[i]
@@ -43,7 +43,7 @@ def crawl_websites(df, no_of_websites, user_agent_provider):
             args=(
                 element,
                 user_agent_provider.get_random_user_agent(),
-                links,
+                responses,
             ),
         )
         t.start()
@@ -52,7 +52,7 @@ def crawl_websites(df, no_of_websites, user_agent_provider):
     for t in threads:
         t.join()
 
-    return links
+    return responses
 
 
 def main():
@@ -110,17 +110,19 @@ def main():
     df = io_handler.parse_parquet(path, "domain")
 
     # Crawl the websites and get the links
-    # TODO: df.size instead of 20
-    links = crawl_websites(df, 20, user_agent_provider)
+    responses = crawl_websites(df, df.size, user_agent_provider)
 
     # Parse the addresses from the links
     list_of_addresses = []
-    for link in links:
+    for element in responses:
         print(
-            f"{Fore.LIGHTGREEN_EX}[{links.index(link) + 1}] {Style.RESET_ALL}Extracting addresses from {Fore.YELLOW}{link[0].split('/')[2]}{Style.RESET_ALL}"
+            f"{Fore.LIGHTGREEN_EX}[{responses.index(element) + 1}] {Style.RESET_ALL}Extracting address from {element[0].get('domain')}{Style.RESET_ALL}"
         )
+
         address_parser.parse_address(
-            link, user_agent_provider.get_random_user_agent(), list_of_addresses
+            element,
+            user_agent_provider.get_random_user_agent(),
+            list_of_addresses,
         )
 
     # Write the addresses to a parquet file
@@ -131,10 +133,12 @@ def main():
     seconds = end - start
     m, s = divmod(seconds, 60)
 
+    print("\n-------------------------------------------------------")
     print(f"Time elapsed: {Fore.GREEN}{m} minutes and {s} seconds{Style.RESET_ALL}")
     print(
         f"Extracted {Fore.GREEN}{len(list_of_addresses)}{Style.RESET_ALL} addresses from {Fore.YELLOW}{df.size}{Style.RESET_ALL} domains"
     )
+    print("-------------------------------------------------------")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,8 @@
 import requests
 from bs4 import BeautifulSoup as bs
 import urllib3
+from colorama import init as colorama_init
+from colorama import Fore, Style
 
 
 class WebsiteCrawler:
@@ -26,7 +28,8 @@ class WebsiteCrawler:
 
         headers = {"User-Agent": user_agent}
         print(f"Crawling website: {domain}")
-        new_links = [f"https://{domain}"]  # add the main page to the list of links
+        new_links = []  # add the main page to the list of links
+        responses = []
         try:
             response = requests.get(
                 f"https://{domain}",
@@ -41,6 +44,12 @@ class WebsiteCrawler:
                 domain = response.url.split("/")[2]
 
             response = response.text
+            return_dict = {
+                "domain": domain,
+                "response": response,
+            }
+            responses.append(return_dict)
+
             if (
                 not "404" in response
                 or not "error" in response
@@ -66,9 +75,30 @@ class WebsiteCrawler:
                                 else:
                                     new_links.append(href)
         except Exception as e:
-            # print(f"Error occured when crawling {domain}. Err: {e}")
-            # do nothing
+            print(
+                f"{Fore.RED}Could not crawl website: {domain}. Error: {e}{Style.RESET_ALL}"
+            )
             pass
+
         new_links = list(set(new_links))  # remove duplicates
-        output_arr.append(new_links)
-        # return new_links
+        for link in new_links:
+            try:
+                response = requests.get(
+                    link,
+                    timeout=self.timeout,
+                    headers=headers,
+                    allow_redirects=True,
+                    verify=False,
+                )
+                if response.status_code == 200:
+                    return_dict = {
+                        "domain": domain,
+                        "response": response.text,
+                    }
+                    responses.append(return_dict)
+
+            except Exception as e:
+                pass
+
+        if responses:
+            output_arr.append(responses)

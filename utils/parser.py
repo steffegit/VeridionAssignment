@@ -141,7 +141,7 @@ class AddressParser:
             )
         return None
 
-    def parse_address(self, url_list, user_agent, output_arr):
+    def parse_address(self, responses, user_agent, output_arr):
         """
         Parses the address from the url_list
         :param url_list: list
@@ -152,40 +152,15 @@ class AddressParser:
 
         list_of_street_addresses = []
         list_of_zip_codes = []
-        if not url_list:
+        if not responses:
             return
 
         urllib3.disable_warnings()
-        for url in url_list:
-            headers = {"User-Agent": user_agent}
-            try:
-                response = requests.get(
-                    url,
-                    timeout=self.timeout,
-                    headers=headers,
-                    allow_redirects=True,
-                    verify=False,
-                )
-                response.raise_for_status()
-            except requests.exceptions.HTTPError as https_err:
-                print(
-                    f"{Fore.RED}HTTPS ERROR occurred while getting {url}{Style.RESET_ALL}"
-                )
-                logging.error(
-                    f"HTTPS ERROR occurred while getting {url}. Error: {https_err}"
-                )
-                return
-            except Exception as err:
-                print(
-                    f"{Fore.RED}Error occurred while getting {url} (probably a timeout or certification error){Style.RESET_ALL}"
-                )
-                logging.error(
-                    f"Error occurred while getting {url} (probably a timeout or certification error). Error: {err}"
-                )
-                return
+        for response in responses:
+            url = response.get("domain")
 
             try:
-                soup = bs(response.text, "lxml")
+                soup = bs(response.get("response"), "lxml")
             except Exception as e:
                 print(
                     f"{Fore.RED}Error occurred while {Fore.YELLOW}parsing{Fore.RED} page {url}. Error: {e}{Style.RESET_ALL}"
@@ -237,9 +212,7 @@ class AddressParser:
                 logging.error(f"Error getting final address from page {url}. Error {e}")
 
             if final_address:
-                output_arr.append(
-                    {"domain": url.split("/")[2], "address": final_address}
-                )
+                output_arr.append({"domain": url, "address": final_address})
                 break  # we only need one address per website
 
             return
