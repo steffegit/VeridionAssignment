@@ -6,8 +6,17 @@ from bs4 import BeautifulSoup as bs
 from geopy.geocoders import Nominatim
 from geopy.extra.rate_limiter import RateLimiter
 import urllib3
+from colorama import Fore, Style
+import logging
 
 # Format: country, region, city, postcode, road, and road numbers.
+
+logging.basicConfig(
+    filename="output/app.log",
+    filemode="w",
+    format="%(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+)
 
 
 class AddressParser:
@@ -22,7 +31,6 @@ class AddressParser:
         self.geocode = RateLimiter(
             self.geolocator.geocode,
             max_retries=3,
-            error_wait_seconds=5.0,
             swallow_exceptions=True,
         )
 
@@ -118,9 +126,19 @@ class AddressParser:
                     location = re.sub(self.po_box_regex, "", location)
                     return location
         except AttributeError:
-            print(f"AttributeError: Unable to find or process the location from {url}")
+            print(
+                f"{Fore.RED}AttributeError: Unable to find or process the location from {url}{Style.RESET_ALL}"
+            )
+            logging.error(
+                f"AttributeError: Unable to find or process the location from {url}"
+            )
         except Exception as e:
-            print(f"Unexpected error {e} occurred while getting location from {url}")
+            print(
+                f"{Fore.RED}Unexpected error {e} occurred while getting location from {url}{Style.RESET_ALL}"
+            )
+            logging.error(
+                f"Unexpected error {e} occurred while getting location from {url}"
+            )
         return None
 
     def parse_address(self, url_list, user_agent, output_arr):
@@ -150,16 +168,29 @@ class AddressParser:
                 )
                 response.raise_for_status()
             except requests.exceptions.HTTPError as https_err:
-                print(f"https error occurred while getting {url}")
+                print(
+                    f"{Fore.RED}HTTPS ERROR occurred while getting {url}{Style.RESET_ALL}"
+                )
+                logging.error(
+                    f"HTTPS ERROR occurred while getting {url}. Error: {https_err}"
+                )
                 return
             except Exception as err:
-                print(f"Error occurred while getting {url}. Error {err}")
+                print(
+                    f"{Fore.RED}Error occurred while getting {url} (probably a timeout or certification error){Style.RESET_ALL}"
+                )
+                logging.error(
+                    f"Error occurred while getting {url} (probably a timeout or certification error). Error: {err}"
+                )
                 return
 
             try:
                 soup = bs(response.text, "lxml")
             except Exception as e:
-                print(f"Error occurred while parsing page {url}. Error: {e}")
+                print(
+                    f"{Fore.RED}Error occurred while {Fore.YELLOW}parsing{Fore.RED} page {url}. Error: {e}{Style.RESET_ALL}"
+                )
+                logging.error(f"Error occurred while parsing page {url}. Error: {e}")
                 return
 
             street_address = self.get_location(soup, self.street_regex, url)
@@ -176,6 +207,9 @@ class AddressParser:
                     )
                 except Exception as e:
                     print(
+                        f"{Fore.RED}Error validating location from the street_address {street_address} from page {url}. Error: {e}{Style.RESET_ALL}"
+                    )
+                    logging.error(
                         f"Error validating location from the street_address {street_address} from page {url}. Error: {e}"
                     )
 
@@ -185,6 +219,9 @@ class AddressParser:
                     location_from_zip = self.geolocator.geocode(zip_code)
                 except Exception as e:
                     print(
+                        f"{Fore.RED}Error validating location from the zip_code {zip_code} from page {url}. Error: {e}{Style.RESET_ALL}"
+                    )
+                    logging.error(
                         f"Error validating location from the zip_code {zip_code} from page {url}. Error: {e}"
                     )
 
@@ -194,7 +231,10 @@ class AddressParser:
                     location_from_street, location_from_zip
                 )
             except Exception as e:
-                print(f"Error getting final address from page {url}. Error {e}")
+                print(
+                    f"{Fore.RED}Error getting final address from page {url}. Error {e}{Style.RESET_ALL}"
+                )
+                logging.error(f"Error getting final address from page {url}. Error {e}")
 
             if final_address:
                 output_arr.append(

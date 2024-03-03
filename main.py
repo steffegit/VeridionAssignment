@@ -110,7 +110,8 @@ def main():
     df = io_handler.parse_parquet(path, "domain")
 
     # Crawl the websites and get the links
-    links = crawl_websites(df, df.size, user_agent_provider)
+    # TODO: df.size instead of 20
+    links = crawl_websites(df, 20, user_agent_provider)
 
     # Parse the addresses from the links
     list_of_addresses = []
