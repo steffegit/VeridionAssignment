@@ -1,7 +1,7 @@
 # Veridion Assignment - Address Extraction
 
 This project is a Python application that parses addresses from a list of URLs. <br>
-It was made for the role of **"Deeptech Engineer" Intern** at <a href="https://veridion.com/" target="_blank">Veridion</a>
+It was made for the role of **"Deeptech Engineer"** Intern at <a href="https://veridion.com/" target="_blank">Veridion</a>
 
 ## The given script
 Write a program that extracts all the valid addresses that are found on a list of company websites. The format in which you will have to extract this data is the following: country, region, city, postcode, road, and road numbers. 
@@ -75,4 +75,7 @@ Upon completion, the script will store its output in the "addresses.snappy.parqu
 
 ## Results
 
-Coming soon..
+The script managed to successfully extract **15% addresses in 41 minutes** from the provided list of URLs (mostly because of the short timeout duration - 5 seconds).
+I believe that with further optimization and enhancements, the extraction rate could be significantly improved.
+
+<img src="preview.png" alt="results preview" />

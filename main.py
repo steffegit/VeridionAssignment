@@ -5,6 +5,7 @@ from tkinter import Tk
 from tkinter.filedialog import askopenfilename
 from colorama import init as colorama_init
 from colorama import Fore, Style
+import numpy as np
 
 from utils.io_operations import IOHandler
 from utils.crawler import WebsiteCrawler
@@ -13,7 +14,7 @@ from utils.parser import AddressParser
 
 TIMEOUT = 5  # timeout for requests
 NUM_THREADS = 20
-CHUNK_SIZE = 500
+CHUNK_SIZE = 100  # number of websites to crawl at once
 semaphore = Semaphore(NUM_THREADS)
 
 
@@ -45,7 +46,8 @@ def crawl_websites(df, no_of_websites, user_agent_provider):
     threads = []
     responses = []
 
-    for i in range(no_of_websites):
+    # Iterate over the existing elements in the DataFrame
+    for i in range(min(len(df), no_of_websites)):
         element = df[i]
         t = Thread(
             target=crawl_website_with_semaphore,
@@ -119,20 +121,28 @@ def main():
     df = io_handler.parse_parquet(path, "domain")
     list_of_addresses = []
 
-    for i in range(0, df.size, CHUNK_SIZE):
+    df = df.reset_index(drop=True)
+
+    groups = df.groupby(
+        np.arange(len(df)) // CHUNK_SIZE
+    )  # Split the dataframe into chunks
+
+    for _, group in groups:
         print(
-            f"{Fore.LIGHTGREEN_EX}[{i + 1}-{i + CHUNK_SIZE}] {Style.RESET_ALL}Crawling websites {i + 1}-{i + CHUNK_SIZE} out of {df.size}"
+            f"{Fore.LIGHTGREEN_EX}[{group.index[0] + 1}-{group.index[-1] + 1}] {Style.RESET_ALL}Crawling websites {group.index[0] + 1}-{group.index[-1] + 1} out of {len(df)}"
         )
 
+        current_index = group.index[0]
+        # Reset the index of group
+        group = group.reset_index(drop=True)
+
         # Crawl the websites and get the links
-        responses = crawl_websites(
-            df[i : i + CHUNK_SIZE], CHUNK_SIZE, user_agent_provider
-        )
+        responses = crawl_websites(group, CHUNK_SIZE, user_agent_provider)
 
         # Parse the addresses from the links
         for element in responses:
             print(
-                f"{Fore.LIGHTGREEN_EX}[{responses.index(element) + 1}] {Style.RESET_ALL}Extracting address from {element[0].get('domain')}{Style.RESET_ALL}"
+                f"{Fore.LIGHTGREEN_EX}[{current_index + responses.index(element) + 1}] {Style.RESET_ALL}Extracting address from {element[0].get('domain')}{Style.RESET_ALL}"
             )
 
             address_parser.parse_address(
